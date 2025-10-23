@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MCP Server Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        #output {
+            margin-top: 20px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            min-height: 200px;
+            white-space: pre-wrap;
+            background-color: #f9f9f9;
+        }
+        button {
+            padding: 10px 15px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+    </style>
+</head>
+<body>
+    <h1>MCP Server Test</h1>
+    <button id="connectBtn">Connect to Server</button>
+    <h3>Output:</h3>
+    <div id="output">Click the button to connect to the server...</div>
+
+    <script>
+        const output = document.getElementById('output');
+        const connectBtn = document.getElementById('connectBtn');
+
+        function formatJSON(obj) {
+            try {
+                if (typeof obj === 'string') {
+                    try {
+                        obj = JSON.parse(obj);
+                    } catch (e) {
+                        return obj; // Return as is if not JSON string
+                    }
+                }
+                return JSON.stringify(obj, null, 2);
+            } catch (e) {
+                return String(obj);
+            }
+        }
+
+        function logToOutput(message, isError = false) {
+            const pre = document.createElement('pre');
+            pre.style.color = isError ? 'red' : 'inherit';
+            pre.textContent = message;
+            output.appendChild(pre);
+            output.scrollTop = output.scrollHeight;
+        }
+
+        connectBtn.addEventListener('click', async () => {
+            try {
+                output.innerHTML = '<p>Connecting to server...</p>';
+                
+                // First, create a session
+                const sessionResponse = await fetch('http://localhost:3000/mcp/session', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        jsonrpc: '2.0',
+                        method: 'initialize',
+                        id: 1
+                    })
+                });
+                
+                if (!sessionResponse.ok) {
+                    throw new Error(`Failed to initialize session: ${sessionResponse.statusText}`);
+                }
+                
+                const sessionData = await sessionResponse.json();
+                const sessionId = sessionData.result?.sessionId;
+                
+                if (!sessionId) {
+                    throw new Error('Failed to get session ID from server');
+                }
+                
+                logToOutput(`Session created: ${sessionId}`);
+                
+                // Now make the actual request with the session ID
+                const response = await fetch(`http://localhost:3000/mcp/session/${sessionId}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'text/event-stream'
+                    },
+                    body: JSON.stringify({
+                        jsonrpc: '2.0',
+                        method: 'getMyRecordings',
+                        params: {
+                            input: { userId: 'test-user' }
+                        },
+                        id: 2
+                    })
+                });
+
+                logToOutput(`Response status: ${response.status} ${response.statusText}`);
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    logToOutput(`Error response: ${errorText}`, true);
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const data = await response.json();
+                logToOutput('Response received:');
+                logToOutput(formatJSON(data));
+                
+                // Handle error response
+                if (data.error) {
+                    logToOutput(`Error: ${formatJSON(data.error)}`, true);
+                }
+                
+                // Handle result content
+                if (data.result && data.result.content) {
+                    data.result.content.forEach(item => {
+                        logToOutput(`Content (${item.type}):`);
+                        logToOutput(formatJSON(item.text));
+                    });
+                }
+                
+            } catch (error) {
+                const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+                logToOutput(`Error: ${errorMessage}`, true);
+                console.error('Error:', error);
+                
+                // Log additional error details if available
+                if (error.cause) {
+                    logToOutput(`Cause: ${formatJSON(error.cause)}`, true);
+                }
+                if (error.stack) {
+                    logToOutput('Stack trace:', true);
+                    logToOutput(error.stack, true);
+                }
+                
+                // Try to parse the response if it's a fetch error
+                if (error.response) {
+                    try {
+                        const errorData = await error.response.text();
+                        logToOutput(`Response body: ${errorData}`, true);
+                    } catch (e) {
+                        // Ignore JSON parse errors
+                    }
+                }
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,23 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "outDir": "./dist",
+    "rootDir": "./", // 👈 CHANGE 1: Use the current directory as the root
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "sourceMap": true,
+  },
+  // ❌ REMOVE THIS BLOCK
+  // The 'ts-node' options should be in package.json or command line.
+  // "ts-node": {
+  //   "esm": true,
+  //   "experimentalSpecifierResolution": "node"
+  // },
+  "include": ["**/*.ts"], // 👈 CHANGE 2: Include all TypeScript files
+  "exclude": ["node_modules"]
+}
